@@ -122,6 +122,8 @@ class TextAIAnalyse(object):
 
 
 if __name__ == '__main__':
+    my_font = 'Deja_Vu_Sans_Mono.ttf'
+    my_font_style1 = (my_font, 11, "normal")
     # 菜单栏
     menu_def = [
         ['&菜单', ['使用说明', '更新记录']],
@@ -137,16 +139,17 @@ if __name__ == '__main__':
         [sg.FileBrowse('选择文件', target='file_name'), sg.Button('开始检测'), sg.Button('退出')]
     ]
     # 窗口栏
-    windows1 = sg.Window('小错误检测器V1.0', layout=layout1)
+    windows1 = sg.Window('小错误检测器V1.0', layout=layout1, font=my_font_style1)
     for i in range(10):
         event1, value1 = windows1.read()
         if event1 in ('退出', None):
             break
         elif event1 == '使用说明':
             sg.popup('1.搜索百度AI开放平台', '2.点击控制台，注册并登录', '3.选择自然语音处理', '4.创建应用',
-                     '5.填写appid, api_key, secret_key', '6.选择需要纠错的文件', '7.点击开始检测', title='使用说明')
+                     '5.填写appid, api_key, secret_key', '6.选择需要纠错的文件', '7.点击开始检测', title='使用说明',
+                     font=my_font_style1)
         elif event1 == '更新记录':
-            sg.popup('暂时没有更新记录', title='提示')
+            sg.popup('暂时没有更新记录', title='提示', font=my_font_style1)
         elif event1 == '保存配置':
             APP_ID = windows1['app_id'].get()
             API_KEY = windows1['api_key'].get()
@@ -161,19 +164,20 @@ if __name__ == '__main__':
                 with open('info.pkl', 'wb') as f:
                     pickle.dump(dict1, f)
                 sg.popup('保存完毕', '已经生成一个info.pkl文件到本地', title='提示', auto_close=True,
-                         auto_close_duration=3)
+                         auto_close_duration=3, font=my_font_style1)
             else:
-                sg.popup('请检查你的api相关信息是否填写完成', title='错误提示')
+                sg.popup('请检查你的api相关信息是否填写完成', title='错误提示', font=my_font_style1)
         elif event1 == '载入配置':
             if not os.path.exists('info.pkl'):
-                sg.popup('没有找到你的配置文件info.pkl', '请检查你的文件是否在当前路径', title='错误提示')
+                sg.popup('没有找到你的配置文件info.pkl', '请检查你的文件是否在当前路径', title='错误提示',
+                         font=my_font_style1)
             else:
                 with open('info.pkl', 'rb') as f:
                     dict2 = pickle.load(f)
                     windows1['app_id'].update(dict2['app_id'])
                     windows1['api_key'].update(dict2['api_key'])
                     windows1['secret_key'].update(dict2['secret_key'])
-                    sg.popup('配置文件载入完毕', title='提示', auto_close_duration=3, auto_close=True)
+                    sg.popup('配置文件载入完毕', title='提示', auto_close_duration=3, auto_close=True, font=my_font_style1)
         elif event1 == '开始检测':
             APP_ID = windows1['app_id'].get()
             API_KEY = windows1['api_key'].get()
@@ -185,10 +189,11 @@ if __name__ == '__main__':
                 sg.popup('开始检测，共有{}句'.format(len(text_list3)),
                          '预计用时{}秒'.format(len(text_list3)*2), auto_close_duration=5, auto_close=True)
                 layout2 = [
-                    [sg.Text('处理进度条'), sg.ProgressBar(len(text_list3), orientation='h', key='bar', size=(50, 20))],
-                    [sg.Button('取消')]
+                    [sg.Text('处理进度条', font=my_font_style1),
+                     sg.ProgressBar(len(text_list3), orientation='h', key='bar', size=(50, 20))],
+                    [sg.Button('取消', font=my_font_style1)]
                 ]
-                windows2 = sg.Window(title='进度条', layout=layout2)
+                windows2 = sg.Window(title='进度条', layout=layout2, font=my_font_style1)
                 bar = windows2['bar']
                 for ii in range(len(text_list3)):
                     event2, value2 = windows2.read(timeout=10)
@@ -201,9 +206,9 @@ if __name__ == '__main__':
                     time.sleep(0.5 + random.random() / 10)
                     bar.UpdateBar(ii + i)
                 windows2.close()
-                sg.popup('已经检测完成', '并且生成了一个“分析结果”文件夹到本地', title='提示')
+                sg.popup('已经检测完成', '并且生成了一个“分析结果”文件夹到本地', title='提示', font=my_font_style1)
             elif len(file_path) < 5:
-                sg.popup('亲！', '你还没有选择检测的文件', title='提示')
+                sg.popup('亲！', '你还没有选择检测的文件', title='提示', font=my_font_style1)
             else:
-                sg.popup('请输入你的api信息', '详情请查看使用说明', title='提示')
+                sg.popup('请输入你的api信息', '详情请查看使用说明', title='提示',font=my_font_style1)
     windows1.close()
