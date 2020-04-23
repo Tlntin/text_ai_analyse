@@ -1,6 +1,7 @@
 import PySimpleGUI as sg
 from aip import AipNlp
 from docx import Document
+from docx.shared import RGBColor
 import os
 import pickle
 import random
@@ -23,8 +24,7 @@ class TextAIAnalyse(object):
         self.document = Document(doc_path)
         self.doc_path = doc_path
         text_list1 = self.filter_style()
-        text_list2 = self.filter_short_text(text_list1, 12)
-        self.text_list3 = self.split_text(text_list2)
+        self.text_list2 = self.filter_short_text(text_list1, 12)
 
     def filter_style(self):
         """
@@ -42,8 +42,9 @@ class TextAIAnalyse(object):
         :param list1: 列表格式的文本集
         :param length:最短文本长度
         """
-        list2 = [x for x in list1 if len(x) > length]
-        return list2
+        list2 = [x.strip() for x in list1]  # 去除两边空格
+        list3 = [x for x in list2 if len(x) > length]
+        return list3
 
     def split_text(self, list1: list):
         """
@@ -91,34 +92,49 @@ class TextAIAnalyse(object):
         score = result1['item']['score']  # 评分
         if len(vet) == 0:
             return False  # 没有错误
-        elif score > 0.5:  # 如果可信度
+        # elif score > 0.5:  # 如果可信度
+        else:
             return result1  # 返回分析
 
-    def save_analyse(self, dict1):
+    def save_analyse(self, result):
         """
         :param
         """
-        base_name = os.path.basename(self.doc_path)  # 文件名
-        if not os.path.exists('./分析结果'):
-            os.mkdir('./分析结果')
-        path = './分析结果/' + base_name[:8] + '.csv'
-        text = dict1['text']  # 错误的句子
-        correct_query = dict1['item']['correct_query']  # 正确的句子
-        vec_list = dict1['item']['vec_fragment']  # 分析过程
-        vec_error = ','.join([x['ori_frag'] for x in vec_list])  # 提取错误的句子
-        vec_true = ','.join([x['correct_frag'] for x in vec_list])  # 提取正确的句子
-        score = dict1['item']['score']  # 评分
-        str2 = '{},{},{},{},{}\n'.format(text, correct_query, vec_error, vec_true, score)
-        if not os.path.exists(path):  # 如果路径不存在
-            f = open(path, 'wt', encoding='utf-8-sig')
-            str1 = '错误的句子, 正确的句子,错误的词为,正确的词为, 可信度评分\n'
-            f.write(str1)
-            f.write(str2)
-            f.close()
+        text = result['text']
+        text_encode = text.encode('gbk')
+        vet_list = result['item']['vec_fragment']
+        """ 开始写入word """
+        basename = os.path.basename(self.doc_path)
+        path = './分析结果/{}.docx'.format(basename[:6])
+        dir_name = './分析结果'
+        if not os.path.exists(dir_name):  # 如果文件夹不存在
+            os.mkdir(dir_name)
+        a = vet_list[0]['begin_pos']  # 获取第一个错误标签的开始位置
+        b = vet_list[-1]['end_pos']  # 获取最后一个错误的结束位置
+        if not os.path.exists(path):  # 如果文件不存在
+            doc = Document()
         else:
-            f = open(path, 'at', encoding='utf-8-sig')
-            f.write(str2)
-            f.close()
+            doc = Document(path)
+        doc.add_paragraph('错误写法', style='heading 1')  # 一级标题
+        p = doc.add_paragraph()  # 创建一个空段落
+        p.add_run(text_encode[:a].decode('gbk'))  # 写入没有错误的部分
+        start_list = [x['begin_pos'] for x in vet_list]  # 记录开始的位置
+        end_list = [x['end_pos'] for x in vet_list]  # 记录结束的位置
+        if len(vet_list) == 1:  # 如果只有一个错误
+            run1 = p.add_run(text_encode[start_list[0]:end_list[0]].decode('gbk'))
+            run1.font.color.rgb = RGBColor(255, 0, 0)  # 设置红色字体
+        else:  # 如果有多个错误
+            for i in range(len(vet_list)):
+                run = p.add_run(text_encode[start_list[i]:end_list[i]].decode('gbk'))
+                run.font.color.rgb = RGBColor(255, 0, 0)  # 设置红色字体
+                if i < len(vet_list) - 1 and start_list[i + 1] - end_list[i] > 1:  # 如果后面一处错误与前面一处错误存在间距
+                    p.add_run(text_encode[end_list[i]:start_list[i + 1]].decode('gbk'))  # 增加一个没有样式的普通字体
+        if len(text_encode) - b > 1:  # 如果最后一个错误后面存在正确的内容
+            p.add_run(text_encode[b:].decode('gbk'))  # 写入后面无错的内容
+        doc.add_paragraph('正确写法', style='heading 1')  # 一级标题
+        correct = result['item']['correct_query']  # 正确的内容
+        doc.add_paragraph(correct)  # 写入正确的内容
+        doc.save(path)
 
 
 if __name__ == '__main__':
@@ -136,10 +152,11 @@ if __name__ == '__main__':
         [sg.Text('API_KEY', size=(12, None)), sg.Input(key='api_key')],
         [sg.Text('SECRET_KEY', size=(12, None)), sg.Input(key='secret_key')],
         [sg.Text('文件位置'), sg.Input(key='file_name', size=(51, None))],
-        [sg.FileBrowse('选择文件', target='file_name'), sg.Button('开始检测'), sg.Button('退出')]
+        [sg.FileBrowse('选择文件', target='file_name'), sg.Button('开始检测'),
+         sg.CBox('中文分号分句', default=False, key='split_type'), sg.Button('退出')]
     ]
     # 窗口栏
-    windows1 = sg.Window('小错误检测器V1.0', layout=layout1, font=my_font_style1)
+    windows1 = sg.Window('纠错帮V1.1', layout=layout1, font=my_font_style1)
     for i in range(10):
         event1, value1 = windows1.read()
         if event1 in ('退出', None):
@@ -149,17 +166,23 @@ if __name__ == '__main__':
                      '5.填写appid, api_key, secret_key', '6.选择需要纠错的文件', '7.点击开始检测', title='使用说明',
                      font=my_font_style1)
         elif event1 == '更新记录':
-            sg.popup('暂时没有更新记录', title='提示', font=my_font_style1)
+            sg.popup(
+                'V1.1更新记录'
+                '1.增加了分号分句功能',
+                '2.增加了导出word对比功能',
+                title='提示', font=my_font_style1)
         elif event1 == '保存配置':
             APP_ID = windows1['app_id'].get()
             API_KEY = windows1['api_key'].get()
             SECRET_KEY = windows1['secret_key'].get()
             file_path = windows1['file_name'].get()
+            split_type = windows1['split_type'].get()
             if len(APP_ID) > 3 and len(API_KEY) > 5 and len(SECRET_KEY) > 5:
                 dict1 = {
                     'app_id': APP_ID,
                     'api_key': API_KEY,
-                    'secret_key': SECRET_KEY
+                    'secret_key': SECRET_KEY,
+                    'split_type': split_type
                 }
                 with open('info.pkl', 'wb') as f:
                     pickle.dump(dict1, f)
@@ -177,15 +200,21 @@ if __name__ == '__main__':
                     windows1['app_id'].update(dict2['app_id'])
                     windows1['api_key'].update(dict2['api_key'])
                     windows1['secret_key'].update(dict2['secret_key'])
+                    windows1['split_type'].update(dict2['split_type'])
                     sg.popup('配置文件载入完毕', title='提示', auto_close_duration=3, auto_close=True, font=my_font_style1)
         elif event1 == '开始检测':
             APP_ID = windows1['app_id'].get()
             API_KEY = windows1['api_key'].get()
             SECRET_KEY = windows1['secret_key'].get()
             file_path = windows1['file_name'].get()
+            split_type = windows1['split_type'].get()
             if len(APP_ID) > 3 and len(API_KEY) > 5 and len(SECRET_KEY) > 5:
                 doc = TextAIAnalyse(file_path, APP_ID, API_KEY, SECRET_KEY)
-                text_list3 = doc.text_list3
+                text_list2 = doc.text_list2
+                if split_type:  # 如果选择的True,也就是支持分号
+                    text_list3 = doc.split_text(text_list2)
+                else:
+                    text_list3 = doc.split_text2(text_list2)
                 sg.popup('开始检测，共有{}句'.format(len(text_list3)),
                          '预计用时{}秒'.format(len(text_list3)*2), auto_close_duration=5, auto_close=True)
                 layout2 = [
@@ -200,7 +229,8 @@ if __name__ == '__main__':
                     if event2 in ('取消', None):
                         break
                     result2 = doc.ai_analyse(text_list3[ii])
-                    if result2:
+                    print(text_list3[ii])
+                    if bool(result2):
                         print(result2)
                         doc.save_analyse(result2)
                     time.sleep(0.5 + random.random() / 10)
